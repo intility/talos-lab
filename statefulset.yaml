@@ -1,0 +1,163 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: talos
+  labels:
+    kubernetes.io/metadata.name: talos
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: privileged
+    pod-security.kubernetes.io/warn-version: latest
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: talos-sa
+  namespace: talos
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: talos-sa-anyuid
+  namespace: talos
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: talos-sa
+    namespace: talos
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: talos-sa-privileged
+  namespace: talos
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+subjects:
+  - kind: ServiceAccount
+    name: talos-sa
+    namespace: talos
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: talos
+  namespace: talos
+  labels:
+    app: talos
+spec:
+  clusterIP: None
+  selector:
+    app: talos
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: talos
+  namespace: talos
+  labels:
+    app: talos
+spec:
+  serviceName: talos
+  replicas: 3
+  selector:
+    matchLabels:
+      app: talos
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: talos
+      labels:
+        app: talos
+    spec:
+      serviceAccountName: talos-sa
+      containers:
+        - name: talos
+          image: ghcr.io/siderolabs/talos:v1.10.0
+          env:
+            - name: PLATFORM
+              value: container
+          ports:
+            - name: talos-api
+              containerPort: 50000
+              protocol: TCP
+            - name: k8s-api
+              containerPort: 6443
+              protocol: TCP
+          securityContext:
+            privileged: true
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: Unconfined
+          volumeMounts:
+            - name: run
+              mountPath: /run
+            - name: system
+              mountPath: /system
+            - name: tmp
+              mountPath: /tmp
+            - name: system-state
+              mountPath: /system/state
+            - name: var
+              mountPath: /var
+            - name: etc-cni
+              mountPath: /etc/cni
+            - name: etc-kubernetes
+              mountPath: /etc/kubernetes
+            - name: usr-libexec-kubernetes
+              mountPath: /usr/libexec/kubernetes
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: system
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: system-state
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 500Mi
+    - metadata:
+        name: var
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: etc-cni
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Mi
+    - metadata:
+        name: etc-kubernetes
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 200Mi
+    - metadata:
+        name: usr-libexec-kubernetes
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 200Mi
