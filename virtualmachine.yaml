@@ -1,0 +1,73 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: talos-node-1
+  namespace: talos
+spec:
+  dataVolumeTemplates:
+    - metadata:
+        name: talos-node-1-volume
+      spec:
+        sourceRef:
+          # must be created by uploading via ui or virtctl
+          # from talos iso: https://github.com/siderolabs/talos/releases/tag/v1.10.1
+          kind: DataSource
+          name: talos-v1-10-1
+          namespace: talos
+        storage:
+          resources:
+            requests:
+              storage: 32Gi
+          storageClassName: ocs-storagecluster-ceph-rbd
+    - metadata:
+        name: talos-node-1-volume-blank
+      spec:
+        source:
+          blank: {}
+        storage:
+          resources:
+            requests:
+              storage: 30Gi
+          storageClassName: ocs-storagecluster-ceph-rbd
+  instancetype:
+    kind: virtualmachineclusterinstancetype
+    name: u1.small
+  preference:
+    kind: virtualmachineclusterpreference
+    name: linux
+  running: true
+  template:
+    metadata:
+      labels:
+        network.kubevirt.io/headlessService: headless
+    spec:
+      architecture: amd64
+      domain:
+        devices:
+          autoattachPodInterface: false
+          disks:
+            - bootOrder: 2
+              cdrom:
+                bus: sata
+              name: talos-node-1-cdrom-iso
+            - bootOrder: 1
+              name: rootdisk
+          interfaces:
+            - macAddress: "02:cb:a1:00:00:01"
+              masquerade: {}
+              name: default
+        machine:
+          type: pc-q35-rhel9.4.0
+        resources: {}
+      networks:
+        - name: default
+          pod: {}
+      subdomain: headless
+      volumes:
+        - dataVolume:
+            name: talos-node-1-volume
+          name: talos-node-1-cdrom-iso
+          name: cloudinitdisk
+        - dataVolume:
+            name: talos-node-1-volume-blank
+          name: rootdisk

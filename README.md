@@ -54,3 +54,18 @@ talos-0   Ready    control-plane   6m39s   v1.33.0
 talos-1   Ready    control-plane   6m29s   v1.33.0
 talos-2   Ready    control-plane   6m59s   v1.33.0
 ```
+
+**Adding a node**
+
+1. Create a VM from talos iso (wip)
+2. Portforward to port 50000 of the vm:
+
+```
+kubectl virt port-forward vm/talos-node-1 50000
+```
+
+3. Add node to cluster:
+
+```
+talosctl apply-config --insecure --nodes 127.0.0.1:50000 --file worker.yaml
+```
